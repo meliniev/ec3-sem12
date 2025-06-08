@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Navbar from '../components/Navbar';
 
 interface Medicamento {
   CodMedicamento: number;
@@ -13,13 +12,16 @@ interface Medicamento {
 interface TipoMedic {
   CodTipoMed: number;
   descripcion: string;
-  medicamentos: Medicamento[];
+  medicamentos?: Medicamento[]; // <- Puede ser undefined
 }
 
 export default function TiposPage() {
   const [tipoMedics, setTipoMedics] = useState<TipoMedic[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ descripcion: '' });
+  const [editId, setEditId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchTipoMedics();
@@ -37,135 +39,153 @@ export default function TiposPage() {
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (editId) {
+        await fetch(`/api/tipomedic/${editId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ descripcion: form.descripcion }),
+        });
+      } else {
+        await fetch('/api/tipomedic', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ descripcion: form.descripcion }),
+        });
+      }
+      fetchTipoMedics();
+      setForm({ descripcion: '' });
+      setEditId(null);
+      setShowModal(false);
+    } catch (error) {
+      console.error('Error creating/updating tipo:', error);
+    }
+  };
+
+  const handleEdit = (tipo: TipoMedic) => {
+    setForm({ descripcion: tipo.descripcion });
+    setEditId(tipo.CodTipoMed);
+    setShowModal(true);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('¿Seguro que quieres eliminar este tipo de medicamento?')) return;
+    await fetch(`/api/tipomedic/${id}`, { method: 'DELETE' });
+    fetchTipoMedics();
+  };
+
   const filteredTipos = tipoMedics.filter(tipo =>
     tipo.descripcion.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (loading) {
-    return (
-      <>
-        <Navbar />
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        </div>
-      </>
-    );
-  }
-
   return (
     <>
-      <Navbar />
-      
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">Tipos de Medicamento</h1>
-                <p className="text-gray-600 mt-1">Clasificación y gestión de categorías</p>
-              </div>
-              <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-sm">
-                + Nuevo Tipo
-              </button>
-            </div>
-            
-            {/* Buscador */}
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Buscar tipos de medicamento..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full max-w-md px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center">
-                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          {/* Tabla */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Código
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Descripción
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Medicamentos Asociados
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Stock Total
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Acciones
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredTipos.map((tipo) => (
-                    <tr key={tipo.CodTipoMed} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          #{tipo.CodTipoMed}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900">
-                          {tipo.descripcion}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="max-w-xs">
-                          {tipo.medicamentos.length > 0 ? (
-                            <div className="space-y-1">
-                              {tipo.medicamentos.slice(0, 3).map((med) => (
-                                <div key={med.CodMedicamento} className="text-xs text-gray-600 bg-blue-50 px-2 py-1 rounded">
-                                  • {med.descripcionMed}
-                                </div>
-                              ))}
-                              {tipo.medicamentos.length > 3 && (
-                                <div className="text-xs text-gray-500 font-medium">
-                                  +{tipo.medicamentos.length - 3} más...
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-gray-400 italic">Sin medicamentos asociados</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-800">
-                          {tipo.medicamentos.reduce((total, med) => total + med.stock, 0)} unidades
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex space-x-2">
-                          <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                            Editar
-                          </button>
-                          <button className="text-red-600 hover:text-red-800 text-sm font-medium">
-                            Eliminar
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+      <div className="header-bar">
+        <span className="header-title">Stack</span>
+        <div className="header-nav">
+          <a href="/">Medicamentos</a>
+          <a href="/tipos" className="active">Tipos de Medicamento</a>
         </div>
       </div>
+      <div className="page-content">
+        <div className="table-title-row">
+          <span className="table-title">Tipos de Medicamento</span>
+          <button className="btn-primary" onClick={() => { setShowModal(true); setForm({ descripcion: '' }); setEditId(null); }}>
+            Nuevo Tipo
+          </button>
+        </div>
+        <div className="search-bar">
+          <input
+            type="text"
+            placeholder="Buscar..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <table className="table-list">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Descripción</th>
+              <th>Medicamentos Asociados</th>
+              <th>Stock Total</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredTipos.map((tipo) => (
+              <tr key={tipo.CodTipoMed}>
+                <td>#{tipo.CodTipoMed}</td>
+                <td>{tipo.descripcion}</td>
+                <td>
+                  {(tipo.medicamentos && tipo.medicamentos.length > 0) ? (
+                    <>
+                      {tipo.medicamentos.slice(0, 3).map(med => (
+                        <div key={med.CodMedicamento} style={{ fontSize: 13, color:'#2776e6' }}>
+                          • {med.descripcionMed}
+                        </div>
+                      ))}
+                      {tipo.medicamentos.length > 3 && (
+                        <div style={{ color:'#555', fontSize: 12 }}>
+                          +{tipo.medicamentos.length - 3} más...
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <span style={{ color: '#888', fontSize: 13 }}>Sin medicamentos asociados</span>
+                  )}
+                </td>
+                <td>
+                  {(tipo.medicamentos && tipo.medicamentos.length > 0)
+                    ? tipo.medicamentos.reduce((total, med) => total + med.stock, 0)
+                    : 0} unidades
+                </td>
+                <td className="action-cell">
+                  <button
+                    className="action-btn edit"
+                    title="Editar"
+                    onClick={() => handleEdit(tipo)}
+                  >✏️</button>
+                  <button
+                    className="action-btn delete"
+                    title="Eliminar"
+                    onClick={() => handleDelete(tipo.CodTipoMed)}
+                  >🗑️</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {showModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <span className="modal-title">{editId ? "Editar" : "Nuevo"} Tipo de Medicamento</span>
+              <button className="modal-close" onClick={() => { setShowModal(false); setEditId(null); }}>×</button>
+            </div>
+            <form onSubmit={handleSubmit}>
+              <label>Descripción</label>
+              <input
+                type="text"
+                value={form.descripcion}
+                onChange={(e) => setForm({ descripcion: e.target.value })}
+                required
+              />
+              <div className="modal-footer">
+                <button type="button" className="btn-cancel" onClick={() => { setShowModal(false); setEditId(null); }}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-save">
+                  Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }
